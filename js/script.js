@@ -174,12 +174,8 @@ function initFormValidation() {
       }
 
       if (isValid) {
-        // Simulation d'envoi (à remplacer par vraie soumission)
-        showSuccessMessage(form);
-        form.reset();
-
-        // TODO: Remplacer par vraie soumission AJAX
-        // submitFormData(form);
+        // Soumettre le formulaire via AJAX
+        submitFormData(form);
       } else {
         // Scroll vers la première erreur
         const firstError = form.querySelector('.form-error');
@@ -245,7 +241,7 @@ function clearFormErrors(form) {
 /**
  * Affiche un message de succès
  */
-function showSuccessMessage(form) {
+function showSuccessMessage(form, message = 'Message envoyé avec succès !') {
   const successDiv = document.createElement('div');
   successDiv.className = 'alert alert-success';
   successDiv.style.backgroundColor = '#D4EDDA';
@@ -255,7 +251,7 @@ function showSuccessMessage(form) {
   successDiv.style.marginBottom = '1rem';
   successDiv.style.border = '1px solid #C3E6CB';
   successDiv.innerHTML = `
-    <strong>✓ Message envoyé avec succès !</strong><br>
+    <strong>✓ ${message}</strong><br>
     Nous vous contacterons dans les plus brefs délais.
   `;
 
@@ -270,6 +266,111 @@ function showSuccessMessage(form) {
     successDiv.style.opacity = '0';
     setTimeout(() => successDiv.remove(), 500);
   }, 5000);
+}
+
+/**
+ * Affiche un message d'erreur global
+ */
+function showErrorMessage(form, message = 'Une erreur est survenue') {
+  const errorDiv = document.createElement('div');
+  errorDiv.className = 'alert alert-error';
+  errorDiv.style.backgroundColor = '#F8D7DA';
+  errorDiv.style.color = '#721C24';
+  errorDiv.style.padding = '1rem';
+  errorDiv.style.borderRadius = '6px';
+  errorDiv.style.marginBottom = '1rem';
+  errorDiv.style.border = '1px solid #F5C6CB';
+  errorDiv.innerHTML = `
+    <strong>✗ ${message}</strong>
+  `;
+
+  form.insertBefore(errorDiv, form.firstChild);
+
+  // Scroll vers le message
+  errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Supprimer le message après 7 secondes
+  setTimeout(() => {
+    errorDiv.style.transition = 'opacity 0.5s';
+    errorDiv.style.opacity = '0';
+    setTimeout(() => errorDiv.remove(), 500);
+  }, 7000);
+}
+
+/**
+ * Soumettre le formulaire via AJAX
+ */
+function submitFormData(form) {
+  // Désactiver le bouton submit
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const originalBtnText = submitBtn ? submitBtn.innerHTML : '';
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '⏳ Envoi en cours...';
+  }
+
+  // Préparer les données du formulaire
+  const formData = new FormData(form);
+
+  // Ajouter le token reCAPTCHA si disponible
+  if (window.ReCaptcha && window.ReCaptcha.loaded) {
+    window.ReCaptcha.execute('contact_form')
+      .then(token => {
+        formData.set('recaptcha_token', token);
+        sendFormDataToServer(form, formData, submitBtn, originalBtnText);
+      })
+      .catch(err => {
+        console.warn('reCAPTCHA error:', err);
+        // Envoyer quand même sans reCAPTCHA
+        sendFormDataToServer(form, formData, submitBtn, originalBtnText);
+      });
+  } else {
+    // Envoyer sans reCAPTCHA
+    sendFormDataToServer(form, formData, submitBtn, originalBtnText);
+  }
+}
+
+/**
+ * Envoyer les données au serveur
+ */
+function sendFormDataToServer(form, formData, submitBtn, originalBtnText) {
+  fetch('send-email.php', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnText;
+    }
+
+    if (data.success) {
+      showSuccessMessage(form, data.message);
+      form.reset();
+
+      // Tracking de la conversion
+      if (typeof Tracking !== 'undefined') {
+        Tracking.trackFormSubmission('Contact Form', {
+          service: formData.get('service'),
+          commune: formData.get('commune')
+        });
+      }
+    } else {
+      showErrorMessage(form, data.message);
+    }
+  })
+  .catch(error => {
+    console.error('Form submission error:', error);
+
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnText;
+    }
+
+    showErrorMessage(form, 'Une erreur est survenue lors de l\'envoi. Veuillez réessayer ou nous contacter par téléphone.');
+  });
 }
 
 /**
