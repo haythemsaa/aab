@@ -1,0 +1,11 @@
+# robots.txt pour AAB Brocanteur
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://aab-brocanteur.be/sitemap.xml
+
+# Désactiver l'indexation de certains dossiers (si applicable)
+# Disallow: /admin/
+# Disallow: /temp/
